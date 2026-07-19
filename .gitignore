@@ -6,3 +6,4 @@ venv/
 *.log
 downloads/
 tmp/
+.vercel
