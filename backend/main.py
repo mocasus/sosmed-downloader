@@ -61,52 +61,46 @@ async def tiktok_download(url: str) -> dict:
 # ═══════════════════════════════════════
 
 async def instagram_download(url: str) -> dict:
-    """Instagram post/reel download via public API"""
-    # Extract shortcode
-    shortcode = None
-    for pattern in [r'/p/([\w-]+)', r'/reel/([\w-]+)', r'/tv/([\w-]+)']:
-        m = re.search(pattern, url)
-        if m:
-            shortcode = m.group(1)
-            break
+    """Instagram post/reel download via yt-dlp"""
+    import subprocess, tempfile, os
 
-    if not shortcode:
-        raise HTTPException(400, "URL Instagram tidak valid")
+    try:
+        # Use yt-dlp to extract info (dump JSON)
+        cmd = [
+            "python3", "-m", "yt_dlp",
+            "--dump-json",
+            "--no-playlist",
+            "--no-check-certificates",
+            "--extractor-args", "instagram:no_login",
+            url
+        ]
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
 
-    async with httpx.AsyncClient(timeout=30, follow_redirects=True) as client:
-        headers = {
-            "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)",
-            "Accept": "text/html,application/xhtml+xml"
+        if result.returncode != 0 or not result.stdout.strip():
+            raise HTTPException(400, "Tidak dapat mengakses konten Instagram. Mungkin akun private.")
+
+        data = json.loads(result.stdout)
+
+        # Determine media type
+        is_video = data.get("duration") is not None
+        media_url = data.get("url", "")
+        thumbnail = data.get("thumbnail", "")
+
+        return {
+            "platform": "instagram",
+            "type": "video" if is_video else "image",
+            "author": data.get("uploader", ""),
+            "title": data.get("title", "")[:200] if data.get("title") else "",
+            "duration": int(data["duration"]) if is_video and data.get("duration") else None,
+            "media_url": media_url,
+            "thumbnail": thumbnail or media_url,
+            "likes": data.get("like_count"),
+            "comments": data.get("comment_count"),
         }
-
-        # Try rapidapi-style endpoint first
-        api_url = f"https://instagram-downloader-download-instagram-videos-stories1.p.rapidapi.com/"
-        # Fallback: scrape from public page
-        try:
-            resp = await client.get(
-                f"https://ddinstagram.com/{shortcode}",
-                headers=headers
-            )
-            html = resp.text
-
-            # Extract media URLs from meta tags
-            video_match = re.search(r'<meta property="og:video"[^>]+content="([^"]+)"', html)
-            image_match = re.search(r'<meta property="og:image"[^>]+content="([^"]+)"', html)
-            title_match = re.search(r'<meta property="og:title"[^>]+content="([^"]+)"', html)
-
-            media_type = "video" if video_match else "image"
-            media_url = (video_match or image_match).group(1) if (video_match or image_match) else ""
-
-            return {
-                "platform": "instagram",
-                "type": media_type,
-                "shortcode": shortcode,
-                "title": title_match.group(1) if title_match else "",
-                "media_url": media_url,
-                "thumbnail": image_match.group(1) if image_match and video_match else media_url,
-            }
-        except Exception:
-            raise HTTPException(400, "Gagal download Instagram")
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(400, f"Gagal download Instagram: {str(e)[:100]}")
 
 
 # ═══════════════════════════════════════
@@ -151,7 +145,7 @@ async def twitter_download(url: str) -> dict:
             "platform": "x",
             "type": "tweet",
             "tweet_id": tweet_id,
-            "author": data.get("user", {}).get("screen_name", ""),
+            "author": data.get("user_name", "") or data.get("user_screen_name", ""),
             "text": data.get("text", ""),
             "likes": data.get("likes", 0),
             "retweets": data.get("retweets", 0),
