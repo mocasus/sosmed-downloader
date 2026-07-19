@@ -65,11 +65,11 @@ async def tiktok_download(url: str) -> dict:
 # ═══════════════════════════════════════
 
 async def instagram_download(url: str) -> dict:
-    """Instagram post/reel download via yt-dlp"""
-    import subprocess, tempfile, os
+    """Instagram post/reel download via yt-dlp + fallback scraping"""
+    import subprocess, os, re
 
     try:
-        # Use yt-dlp to extract info (dump JSON)
+        # Method 1: yt-dlp
         cmd = [
             "python3", "-m", "yt_dlp",
             "--dump-json",
@@ -80,27 +80,53 @@ async def instagram_download(url: str) -> dict:
         ]
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
 
-        if result.returncode != 0 or not result.stdout.strip():
-            raise HTTPException(400, "Tidak dapat mengakses konten Instagram. Mungkin akun private.")
+        if result.returncode == 0 and result.stdout.strip():
+            data = json.loads(result.stdout)
+            is_video = data.get("duration") is not None
+            media_url = data.get("url", "")
+            thumbnail = data.get("thumbnail", "")
 
-        data = json.loads(result.stdout)
+            return {
+                "platform": "instagram",
+                "type": "video" if is_video else "image",
+                "author": data.get("uploader", ""),
+                "title": data.get("title", "")[:200] if data.get("title") else "",
+                "duration": int(data["duration"]) if is_video and data.get("duration") else None,
+                "media_url": media_url,
+                "thumbnail": thumbnail or media_url,
+                "likes": data.get("like_count"),
+                "comments": data.get("comment_count"),
+            }
 
-        # Determine media type
-        is_video = data.get("duration") is not None
-        media_url = data.get("url", "")
-        thumbnail = data.get("thumbnail", "")
-
-        return {
-            "platform": "instagram",
-            "type": "video" if is_video else "image",
-            "author": data.get("uploader", ""),
-            "title": data.get("title", "")[:200] if data.get("title") else "",
-            "duration": int(data["duration"]) if is_video and data.get("duration") else None,
-            "media_url": media_url,
-            "thumbnail": thumbnail or media_url,
-            "likes": data.get("like_count"),
-            "comments": data.get("comment_count"),
+        # Method 2: Scrape Instagram page source for public content
+        import httpx as _httpx
+        headers = {
+            "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1"
         }
+        async with _httpx.AsyncClient(timeout=30, follow_redirects=True) as client:
+            resp = await client.get(url, headers=headers)
+            html = resp.text
+
+            # Extract video_url from page source
+            video_match = re.search(r'"video_url":"(https:[^"]+)"', html)
+            image_match = re.search(r'"display_url":"(https:[^"]+)"', html)
+            author_match = re.search(r'"username":"([^"]+)"', html)
+            title_match = re.search(r'"edge_media_to_caption".*?"text":"([^"]+)"', html)
+
+            media_url = video_match.group(1) if video_match else (image_match.group(1) if image_match else "")
+            if not media_url:
+                raise HTTPException(400, "Instagram requires login. Post may be private or age-restricted.")
+
+            return {
+                "platform": "instagram",
+                "type": "video" if video_match else "image",
+                "author": author_match.group(1) if author_match else "",
+                "title": (title_match.group(1) or "")[:200] if title_match else "",
+                "duration": None,
+                "media_url": media_url.replace("\\u0026", "&"),
+                "thumbnail": media_url.replace("\\u0026", "&"),
+            }
+
     except HTTPException:
         raise
     except Exception as e:
