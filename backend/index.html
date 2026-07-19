@@ -475,7 +475,7 @@
             box-shadow: var(--shadow-sm);
         }
         .feature .emoji { margin-right: 4px; }
-        /* Footer */
+        /* Download toast */\n        .download-toast {\n            position: fixed;\n            bottom: 24px;\n            left: 50%;\n            transform: translateX(-50%) translateY(120px);\n            background: var(--fg);\n            color: #fff;\n            padding: 14px 24px;\n            border: 2.5px solid var(--border);\n            border-radius: var(--radius);\n            font-weight: 700;\n            font-size: 0.85rem;\n            box-shadow: var(--shadow);\n            z-index: 999;\n            transition: transform 0.3s cubic-bezier(0.2,0.8,0.2,1.2);\n            display: flex;\n            align-items: center;\n            gap: 8px;\n            white-space: nowrap;\n        }\n        .download-toast.show {\n            transform: translateX(-50%) translateY(0);\n        }\n        .download-toast .toast-spinner {\n            width: 14px; height: 14px;\n            border: 2px solid rgba(255,255,255,0.3);\n            border-top-color: #fff;\n            border-radius: 50%;\n            animation: spin 0.6s linear infinite;\n        }\n        .download-toast.success { background: var(--green); color: #fff; }\n        @keyframes spin { to { transform: rotate(360deg); } }\n        /* Button downloading state */\n        .btn-action.downloading {\n            opacity: 0.7;\n            pointer-events: none;\n            position: relative;\n        }\n        .btn-action.downloading .icon {\n            animation: bounceIcon 0.4s ease-in-out infinite;\n        }\n        @keyframes bounceIcon {\n            0%,100% { transform: translateY(0); }\n            50% { transform: translateY(-4px); }\n        }
         .footer {
             text-align: center;
             margin-top: 36px;
@@ -566,13 +566,41 @@
         <div class="footer">
             Made with ❤️ · <a href="https://github.com/mocasus/sosmed-downloader">Open Source</a>
         </div>
-    </div>
-
-    <script>
+    <div class="download-toast" id="downloadToast"><span class="toast-spinner"></span><span id="toastText">Downloading...</span></div>\n    </div>\n\n    <script>
         let platform = 'auto';
 
+        // Toast helper
+        let toastTimer;
+        function showToast(msg, success) {
+            const t = document.getElementById('downloadToast');
+            const txt = document.getElementById('toastText');
+            clearTimeout(toastTimer);
+            t.classList.remove('success');
+            if (success) {
+                t.classList.add('success');
+                document.querySelector('#downloadToast .toast-spinner').style.display = 'none';
+            } else {
+                document.querySelector('#downloadToast .toast-spinner').style.display = '';
+            }
+            txt.textContent = msg;
+            t.classList.add('show');
+            if (success) {
+                toastTimer = setTimeout(() => t.classList.remove('show'), 2500);
+            }
+        }
+        function hideToast() {
+            document.getElementById('downloadToast').classList.remove('show');
+        }
+
         // Force download via blob (bypasses cross-origin download restriction)
-        function forceDownload(url, filename) {
+        function forceDownload(url, filename, btn) {
+            const originalHTML = btn ? btn.innerHTML : '';
+            if (btn) {
+                btn.classList.add('downloading');
+                btn.querySelector('.label small').textContent = 'Mendownload...';
+            }
+            showToast('⬇️ Mendownload...', false);
+
             const a = document.createElement('a');
             a.style.display = 'none';
             document.body.appendChild(a);
@@ -582,6 +610,10 @@
                 a.href = url;
                 a.download = filename || '';
                 a.click();
+                setTimeout(() => {
+                    if (btn) { btn.classList.remove('downloading'); btn.innerHTML = originalHTML; }
+                    showToast('✅ Selesai!', true);
+                }, 300);
             } else {
                 // Cross-origin: fetch + blob
                 fetch(url)
@@ -592,6 +624,8 @@
                         a.download = filename || '';
                         a.click();
                         setTimeout(() => URL.revokeObjectURL(blobUrl), 5000);
+                        if (btn) { btn.classList.remove('downloading'); btn.innerHTML = originalHTML; }
+                        showToast('✅ Selesai!', true);
                     })
                     .catch(() => {
                         // Fallback: direct open
@@ -599,6 +633,8 @@
                         a.target = '_blank';
                         a.download = '';
                         a.click();
+                        if (btn) { btn.classList.remove('downloading'); btn.innerHTML = originalHTML; }
+                        hideToast();
                     });
             }
             setTimeout(() => a.remove(), 100);
@@ -618,6 +654,13 @@
             const el = e.target.closest('.btn-dl-all');
             const urls = el.dataset.urls.split(',');
             const types = el.dataset.types.split(',');
+            const total = urls.length;
+            const originalHTML = el.innerHTML;
+
+            el.classList.add('downloading');
+            showToast('⬇️ Downloading 0/' + total + '...', false);
+
+            let done = 0;
             urls.forEach((u, i) => {
                 const t = types[i];
                 const dlUrl = (t === 'video' || t === 'gif')
@@ -625,9 +668,54 @@
                     : decodeURIComponent(u);
                 const ext = t === 'video' ? '.mp4' : t === 'gif' ? '.gif' : '.jpg';
                 const label = t === 'video' ? 'video' : t === 'gif' ? 'gif' : 'image';
+                const fname = 'moydl_x_' + label + '_' + (i+1) + ext;
                 setTimeout(() => {
-                    forceDownload(dlUrl, 'moydl_x_' + label + '_' + (i+1) + ext);
-                }, i * 300);
+                    const a = document.createElement('a');
+                    a.style.display = 'none';
+                    document.body.appendChild(a);
+
+                    if (dlUrl.startsWith('/') || dlUrl.startsWith(window.location.origin)) {
+                        a.href = dlUrl;
+                        a.download = fname;
+                        a.click();
+                        done++;
+                        showToast('⬇️ Downloading ' + done + '/' + total + '...', false);
+                        if (done >= total) {
+                            el.classList.remove('downloading');
+                            el.innerHTML = originalHTML;
+                            showToast('✅ Selesai! ' + total + ' files', true);
+                        }
+                    } else {
+                        fetch(dlUrl)
+                            .then(r => r.blob())
+                            .then(blob => {
+                                const blobUrl = URL.createObjectURL(blob);
+                                a.href = blobUrl;
+                                a.download = fname;
+                                a.click();
+                                setTimeout(() => URL.revokeObjectURL(blobUrl), 5000);
+                                done++;
+                                showToast('⬇️ Downloading ' + done + '/' + total + '...', false);
+                                if (done >= total) {
+                                    el.classList.remove('downloading');
+                                    el.innerHTML = originalHTML;
+                                    showToast('✅ Selesai! ' + total + ' files', true);
+                                }
+                            })
+                            .catch(() => {
+                                a.href = dlUrl;
+                                a.target = '_blank';
+                                a.click();
+                                done++;
+                                if (done >= total) {
+                                    el.classList.remove('downloading');
+                                    el.innerHTML = originalHTML;
+                                    hideToast();
+                                }
+                            });
+                    }
+                    setTimeout(() => a.remove(), 100);
+                }, i * 600);
             });
         }
 
@@ -689,12 +777,12 @@
                     body.innerHTML = `<video controls poster="${cover}" src="${data.video_no_watermark}"></video>`;
                     const dur = data.duration ? Math.floor(data.duration/60)+':'+String(data.duration%60).padStart(2,'0') : '';
                     actions.innerHTML = `
-                        <a href="#" class="btn-action primary" onclick="forceDownload('${data.video_no_watermark.replace(/'/g,"\\'")}','moydl_tiktok_${dur}.mp4');return false">
+                        <a href="#" class="btn-action primary" onclick="forceDownload('${data.video_no_watermark.replace(/'/g,"\\'")}','moydl_tiktok_${dur}.mp4',this);return false">
                             <span class="icon">📥</span>
                             <span class="label">Video HD<span class="badge-hd">NO WM</span><small>${dur} · TikTok</small></span>
                         </a>
                         ${data.music ? `
-                        <a href="#" class="btn-action accent" onclick="forceDownload('${data.music.replace(/'/g,"\\'")}','moydl_tiktok_audio.mp3');return false">
+                        <a href="#" class="btn-action accent" onclick="forceDownload('${data.music.replace(/'/g,"\\'")}','moydl_tiktok_audio.mp3',this);return false">
                             <span class="icon">🎵</span>
                             <span class="label">Audio MP3<small>Musik saja</small></span>
                         </a>` : ''}
@@ -710,7 +798,7 @@
                     const igType = data.type === 'video' ? 'Reel' : 'Post';
                     const igExt = data.type === 'video' ? '.mp4' : '.jpg';
                     actions.innerHTML = `
-                        <a href="#" class="btn-action primary" onclick="forceDownload('${data.media_url.replace(/'/g,"\\'")}','moydl_ig_${igType.toLowerCase()}${igExt}');return false">
+                        <a href="#" class="btn-action primary" onclick="forceDownload('${data.media_url.replace(/'/g,"\\'")}','moydl_ig_${igType.toLowerCase()}${igExt}',this);return false">
                             <span class="icon">📥</span>
                             <span class="label">Download ${igType}<small>Instagram</small></span>
                         </a>
@@ -737,7 +825,7 @@
                             const icon = m.type === 'video' ? '🎬' : m.type === 'gif' ? '🖼' : '📷';
                             const label = m.type === 'video' ? 'Video' : m.type === 'gif' ? 'GIF' : 'Image';
                             const ext = m.type === 'video' ? '.mp4' : m.type === 'gif' ? '.gif' : '.jpg';
-                            return `<a href="#" class="btn-action outline" onclick="forceDownload('${dlUrl.replace(/'/g,"\\'")}','moydl_x_${label.toLowerCase()}_${i+1}${ext}');return false">
+                            return `<a href="#" class="btn-action outline" onclick="forceDownload('${dlUrl.replace(/'/g,"\\'")}','moydl_x_${label.toLowerCase()}_${i+1}${ext}',this);return false">
                                 <span class="icon">${icon}</span>
                                 <span class="label">${label} #${i+1}<small>${res(m) || 'X/Twitter'}</small></span>
                             </a>`;
