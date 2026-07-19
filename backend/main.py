@@ -5,9 +5,10 @@ import re
 import json
 import httpx
 from typing import Optional
+import os
 from fastapi import FastAPI, Query, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, HTMLResponse
 
 app = FastAPI(title="Sosmed Downloader", version="1.0.0")
 
@@ -164,6 +165,10 @@ async def twitter_download(url: str) -> dict:
 
 @app.get("/")
 async def root():
+    html_path = os.path.join(os.path.dirname(__file__), "index.html")
+    if os.path.exists(html_path):
+        with open(html_path, "r") as f:
+            return HTMLResponse(f.read())
     return {
         "service": "Sosmed Downloader API",
         "endpoints": {
