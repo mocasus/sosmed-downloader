@@ -526,12 +526,40 @@
         .footer {
             text-align: center;
             margin-top: 36px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 12px;
+        }
+        .footer-github {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 24px;
+            background: var(--fg);
+            color: #fff;
+            border: 2.5px solid var(--border);
+            border-radius: var(--radius);
+            text-decoration: none;
+            font-size: 0.85rem;
+            font-weight: 700;
+            box-shadow: var(--shadow-sm);
+            transition: all 0.15s cubic-bezier(0.2,0,0,1);
+            font-family: inherit;
+        }
+        .footer-github:hover {
+            transform: translate(-2px,-2px);
+            box-shadow: 5px 5px 0 0 var(--pink);
+            background: #222;
+        }
+        .footer-github .gh-icon {
+            font-size: 1.1rem;
+        }
+        .footer-text {
             font-size: 0.75rem;
             color: var(--muted);
             font-weight: 500;
         }
-        .footer a { color: var(--pink); text-decoration: none; font-weight: 700; }
-        .footer a:hover { text-decoration: underline; }
         /* Responsive */
         @media (max-width: 600px) {
             .container { padding: 32px 16px 24px; }
@@ -600,18 +628,13 @@
             <div class="result-actions" id="resultActions"></div>
         </div>
 
-        <!-- Features -->
-        <div class="features">
-            <div class="feature"><span class="emoji">🎵</span> No Watermark</div>
-            <div class="feature"><span class="emoji">📹</span> HD Quality</div>
-            <div class="feature"><span class="emoji">⚡</span> Instant Download</div>
-            <div class="feature"><span class="emoji">🔒</span> No Login</div>
-            <div class="feature"><span class="emoji">📱</span> Mobile Friendly</div>
-        </div>
-
         <!-- Footer -->
         <div class="footer">
-            Made with ❤️ · <a href="https://github.com/mocasus/sosmed-downloader">Open Source</a>
+            <a href="https://github.com/mocasus/sosmed-downloader" target="_blank" class="footer-github">
+                <span class="gh-icon">⭐</span>
+                <span>Star di GitHub</span>
+            </a>
+            <p class="footer-text">Open Source · Gratis Selamanya</p>
         </div>
     <div class="download-toast" id="downloadToast"><span class="toast-spinner"></span><span id="toastText">Downloading...</span></div>
     </div>
