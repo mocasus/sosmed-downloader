@@ -502,7 +502,7 @@
         <!-- Hero -->
         <div class="hero">
             <div class="hero-badge"><span class="dot"></span> NO WATERMARK</div>
-            <h1>Download <span>Tanpa</span><br>Watermark</h1>
+            <h1>Download <span>Tanpa</span> <br>Watermark</h1>
             <p>Paste link TikTok, Instagram, atau X/Twitter — langsung download video & audio, gratis.</p>
         </div>
 
@@ -605,6 +605,7 @@
         }
 
         // Platform tabs
+        document.querySelectorAll('.platform-tab').forEach(tab => {
             tab.addEventListener('click', function() {
                 document.querySelectorAll('.platform-tab').forEach(t => t.classList.remove('active'));
                 this.classList.add('active');
