@@ -321,6 +321,7 @@
         .badge-tt { background: var(--fg); color: #fff; }
         .badge-ig { background: var(--purple); color: #fff; }
         .badge-x  { background: var(--blue); color: #fff; }
+        .badge-yt { background: #ff0000; color: #fff; }
         .result-media {
             padding: 16px;
         }
@@ -585,6 +586,7 @@
             <button class="platform-tab" data-platform="tiktok">🎵 TikTok</button>
             <button class="platform-tab" data-platform="instagram">📸 Instagram</button>
             <button class="platform-tab" data-platform="x">🐦 X / Twitter</button>
+            <button class="platform-tab" data-platform="youtube">▶ YouTube</button>
         </div>
 
         <!-- Input -->
@@ -839,6 +841,7 @@
                 if (data.platform === 'tiktok') badge.classList.add('badge-tt');
                 else if (data.platform === 'instagram') badge.classList.add('badge-ig');
                 else if (data.platform === 'x') badge.classList.add('badge-x');
+                else if (data.platform === 'youtube') badge.classList.add('badge-yt');
 
                 // Body
                 const body = document.getElementById('resultBody');
@@ -925,6 +928,33 @@
                                 <span class="label">${label} #${i+1}<small>${res(m) || 'X/Twitter'}</small></span>
                             </a>`;
                         }).join('');
+                }
+                // YouTube
+                else if (data.platform === 'youtube' && data.formats) {
+                    const fmt = data.formats;
+                    body.innerHTML = `<img src="${cover}" alt="">`;
+                    const dur = data.duration ? Math.floor(data.duration/60)+':'+String(data.duration%60).padStart(2,'0') : '';
+                    actions.innerHTML = '';
+                    if (fmt.video_audio && fmt.video_audio.url) {
+                        const h = fmt.video_audio.height || 'HD';
+                        actions.innerHTML += `<a href="#" class="btn-action primary" onclick="forceDownload('${fmt.video_audio.url.replace(/'/g,"\\'")}','moydl_yt_${dur}.mp4',this);return false">
+                            <span class="icon">🎬</span>
+                            <span class="label">Video + Audio<small>${h}p · ${dur}</small></span>
+                        </a>`;
+                    }
+                    if (fmt.video_only && fmt.video_only.url) {
+                        const h = fmt.video_only.height || 'HD';
+                        actions.innerHTML += `<a href="#" class="btn-action outline" onclick="forceDownload('${fmt.video_only.url.replace(/'/g,"\\'")}','moydl_yt_video_${h}.mp4',this);return false">
+                            <span class="icon">📹</span>
+                            <span class="label">Video Only<small>${h}p · No audio</small></span>
+                        </a>`;
+                    }
+                    if (fmt.audio_only && fmt.audio_only.url) {
+                        actions.innerHTML += `<a href="#" class="btn-action accent" onclick="forceDownload('${fmt.audio_only.url.replace(/'/g,"\\'")}','moydl_yt_audio.m4a',this);return false">
+                            <span class="icon">🎵</span>
+                            <span class="label">Audio MP4<small>${dur} · Musik saja</small></span>
+                        </a>`;
+                    }
                 }
 
                 result.classList.add('show');

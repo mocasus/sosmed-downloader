@@ -167,6 +167,76 @@ async def twitter_download(url: str) -> dict:
 
 
 # ═══════════════════════════════════════
+# YOUTUBE
+# ═══════════════════════════════════════
+
+async def youtube_download(url: str) -> dict:
+    """YouTube video download via yt-dlp"""
+    import subprocess, json, tempfile, os
+
+    try:
+        # Get formats as JSON
+        cmd = [
+            "python3", "-m", "yt_dlp",
+            "--dump-json",
+            "--no-playlist",
+            "--no-check-certificates",
+            "--format-sort", "res,codec:av1",
+            url
+        ]
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+
+        if result.returncode != 0 or not result.stdout.strip():
+            raise HTTPException(400, "Tidak dapat mengakses video YouTube")
+
+        data = json.loads(result.stdout)
+
+        # Find best combined format (video+audio)
+        formats = data.get("formats", [])
+        best_video_audio = None
+        best_video_only = None
+        best_audio_only = None
+
+        for f in formats:
+            vcodec = f.get("vcodec", "none")
+            acodec = f.get("acodec", "none")
+            has_video = vcodec != "none"
+            has_audio = acodec != "none"
+            height = f.get("height") or 0
+            filesize = f.get("filesize") or f.get("filesize_approx") or 0
+            fmt_id = f.get("format_id", "")
+
+            if has_video and has_audio:
+                if not best_video_audio or height > (best_video_audio.get("height") or 0):
+                    best_video_audio = {"url": f.get("url", ""), "height": height, "ext": f.get("ext", "mp4"), "filesize": filesize}
+            elif has_video and not has_audio:
+                if not best_video_only or height > (best_video_only.get("height") or 0):
+                    best_video_only = {"url": f.get("url", ""), "height": height, "ext": f.get("ext", "mp4"), "filesize": filesize}
+            elif not has_video and has_audio:
+                if not best_audio_only or (f.get("abr") or 0) > (best_audio_only.get("abr") or 0):
+                    best_audio_only = {"url": f.get("url", ""), "ext": f.get("ext", "m4a"), "abr": f.get("abr", 0), "filesize": filesize}
+
+        return {
+            "platform": "youtube",
+            "type": "video",
+            "author": data.get("uploader", ""),
+            "title": data.get("title", ""),
+            "duration": int(data.get("duration", 0)),
+            "thumbnail": data.get("thumbnail", ""),
+            "formats": {
+                "video_audio": best_video_audio,
+                "video_only": best_video_only,
+                "audio_only": best_audio_only,
+            }
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(400, f"Gagal download YouTube: {str(e)[:100]}")
+
+
+# ═══════════════════════════════════════
 # API ENDPOINTS
 # ═══════════════════════════════════════
 
@@ -198,8 +268,10 @@ async def auto_download(url: str = Query(..., description="URL konten")):
         return await instagram_download(url)
     elif "twitter.com" in url_lower or "x.com" in url_lower:
         return await twitter_download(url)
+    elif "youtube.com" in url_lower or "youtu.be" in url_lower:
+        return await youtube_download(url)
     else:
-        raise HTTPException(400, "Platform tidak didukung. Support: TikTok, Instagram, X/Twitter")
+        raise HTTPException(400, "Platform tidak didukung. Support: TikTok, Instagram, X/Twitter, YouTube")
 
 
 @app.get("/api/tiktok")
@@ -215,6 +287,11 @@ async def api_instagram(url: str = Query(...)):
 @app.get("/api/x")
 async def api_x(url: str = Query(...)):
     return await twitter_download(url)
+
+
+@app.get("/api/youtube")
+async def api_youtube(url: str = Query(...)):
+    return await youtube_download(url)
 
 
 # ═══════════════════════════════════════
