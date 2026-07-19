@@ -202,27 +202,56 @@
             background: var(--pink);
             box-shadow: var(--shadow-sm);
         }
-        /* Loading */
-        .loading {
+        /* Loading skeleton */
+        .loading-skeleton {
             display: none;
-            text-align: center;
-            padding: 16px;
-            font-weight: 600;
-            font-size: 0.9rem;
-            color: var(--muted);
-        }
-        .loading.show { display: block; }
-        .spinner {
-            display: inline-block;
-            width: 22px; height: 22px;
+            background: var(--card);
             border: 3px solid var(--border);
-            border-top-color: var(--pink);
-            border-radius: 50%;
-            animation: spin 0.6s linear infinite;
-            vertical-align: middle;
-            margin-right: 10px;
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            overflow: hidden;
+            margin-bottom: 24px;
+            animation: skeletonPulse 1.6s ease-in-out infinite;
         }
-        @keyframes spin { to { transform: rotate(360deg); } }
+        .loading-skeleton.show { display: block; }
+        .skeleton-top {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            padding: 18px 22px;
+            border-bottom: 2.5px solid var(--border);
+        }
+        .skeleton-avatar {
+            width: 52px; height: 52px;
+            border-radius: var(--radius);
+            background: #eee;
+            flex-shrink: 0;
+        }
+        .skeleton-lines { flex:1; display:flex; flex-direction:column; gap:8px; }
+        .skeleton-line { height:12px; background:#eee; border-radius:2px; }
+        .skeleton-line:first-child { width:60%; }
+        .skeleton-line:last-child { width:40%; }
+        .skeleton-media {
+            height: 280px;
+            background: #111;
+            margin: 16px;
+            border-radius: var(--radius);
+            border: 2.5px solid var(--border);
+        }
+        .skeleton-actions {
+            display: flex;
+            gap: 10px;
+            padding: 0 16px 20px;
+        }
+        .skeleton-btn {
+            flex:1; height:50px;
+            background:#eee;
+            border-radius: var(--radius);
+        }
+        @keyframes skeletonPulse {
+            0%,100% { opacity:0.6; }
+            50% { opacity:1; }
+        }
         /* Error */
         .error-msg {
             display: none;
@@ -317,16 +346,16 @@
             max-height: 200px;
         }
         .result-actions {
-            display: flex;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
             gap: 10px;
             padding: 0 16px 20px;
-            flex-wrap: wrap;
         }
         .result-actions .btn-action {
-            display: inline-flex;
+            display: flex;
             align-items: center;
             gap: 8px;
-            padding: 14px 20px;
+            padding: 14px 16px;
             border: 2.5px solid var(--border);
             border-radius: var(--radius);
             text-decoration: none;
@@ -340,6 +369,8 @@
             background: var(--card);
             position: relative;
             overflow: hidden;
+            justify-content: center;
+            text-align: center;
         }
         .result-actions .btn-action::after {
             content: '';
@@ -491,8 +522,21 @@
             </div>
         </div>
 
-        <!-- States -->
-        <div class="loading" id="loading"><span class="spinner"></span>Mengambil konten...</div>
+        <!-- Loading Skeleton -->
+        <div class="loading-skeleton" id="loading">
+            <div class="skeleton-top">
+                <div class="skeleton-avatar"></div>
+                <div class="skeleton-lines">
+                    <div class="skeleton-line"></div>
+                    <div class="skeleton-line"></div>
+                </div>
+            </div>
+            <div class="skeleton-media"></div>
+            <div class="skeleton-actions">
+                <div class="skeleton-btn"></div>
+                <div class="skeleton-btn" style="flex:1.5"></div>
+            </div>
+        </div>
         <div class="error-msg" id="error"></div>
 
         <!-- Result -->
@@ -527,7 +571,40 @@
     <script>
         let platform = 'auto';
 
-        document.querySelectorAll('.platform-tab').forEach(tab => {
+        // Force download via blob (bypasses cross-origin download restriction)
+        function forceDownload(url, filename) {
+            const a = document.createElement('a');
+            a.style.display = 'none';
+            document.body.appendChild(a);
+
+            // Same-origin: use direct download attribute
+            if (url.startsWith('/') || url.startsWith(window.location.origin)) {
+                a.href = url;
+                a.download = filename || '';
+                a.click();
+            } else {
+                // Cross-origin: fetch + blob
+                fetch(url)
+                    .then(r => r.blob())
+                    .then(blob => {
+                        const blobUrl = URL.createObjectURL(blob);
+                        a.href = blobUrl;
+                        a.download = filename || '';
+                        a.click();
+                        setTimeout(() => URL.revokeObjectURL(blobUrl), 5000);
+                    })
+                    .catch(() => {
+                        // Fallback: direct open
+                        a.href = url;
+                        a.target = '_blank';
+                        a.download = '';
+                        a.click();
+                    });
+            }
+            setTimeout(() => a.remove(), 100);
+        }
+
+        // Platform tabs
             tab.addEventListener('click', function() {
                 document.querySelectorAll('.platform-tab').forEach(t => t.classList.remove('active'));
                 this.classList.add('active');
@@ -545,11 +622,10 @@
                 const dlUrl = (t === 'video' || t === 'gif')
                     ? '/api/proxy/media?url=' + u
                     : decodeURIComponent(u);
+                const ext = t === 'video' ? '.mp4' : t === 'gif' ? '.gif' : '.jpg';
+                const label = t === 'video' ? 'video' : t === 'gif' ? 'gif' : 'image';
                 setTimeout(() => {
-                    const a = document.createElement('a');
-                    a.href = dlUrl;
-                    a.download = '';
-                    a.click();
+                    forceDownload(dlUrl, 'moydl_x_' + label + '_' + (i+1) + ext);
                 }, i * 300);
             });
         }
@@ -612,12 +688,12 @@
                     body.innerHTML = `<video controls poster="${cover}" src="${data.video_no_watermark}"></video>`;
                     const dur = data.duration ? Math.floor(data.duration/60)+':'+String(data.duration%60).padStart(2,'0') : '';
                     actions.innerHTML = `
-                        <a href="${data.video_no_watermark}" class="btn-action primary" download>
+                        <a href="#" class="btn-action primary" onclick="forceDownload('${data.video_no_watermark.replace(/'/g,"\\'")}','moydl_tiktok_${dur}.mp4');return false">
                             <span class="icon">📥</span>
                             <span class="label">Video HD<span class="badge-hd">NO WM</span><small>${dur} · TikTok</small></span>
                         </a>
                         ${data.music ? `
-                        <a href="${data.music}" class="btn-action accent" download>
+                        <a href="#" class="btn-action accent" onclick="forceDownload('${data.music.replace(/'/g,"\\'")}','moydl_tiktok_audio.mp3');return false">
                             <span class="icon">🎵</span>
                             <span class="label">Audio MP3<small>Musik saja</small></span>
                         </a>` : ''}
@@ -631,8 +707,9 @@
                         body.innerHTML = `<img src="${data.media_url}" alt="">`;
                     }
                     const igType = data.type === 'video' ? 'Reel' : 'Post';
+                    const igExt = data.type === 'video' ? '.mp4' : '.jpg';
                     actions.innerHTML = `
-                        <a href="${data.media_url}" class="btn-action primary" download>
+                        <a href="#" class="btn-action primary" onclick="forceDownload('${data.media_url.replace(/'/g,"\\'")}','moydl_ig_${igType.toLowerCase()}${igExt}');return false">
                             <span class="icon">📥</span>
                             <span class="label">Download ${igType}<small>Instagram</small></span>
                         </a>
@@ -651,14 +728,15 @@
 
                     const res = m => m.type === 'video' ? '720p' : (m.size ? (m.size.width+'×'+m.size.height) : '');
                     actions.innerHTML =
-                        (data.media.length > 2 ? '<a href="#" class="btn-action btn-dl-all" onclick="downloadAll(event)" data-urls="' + data.media.map(m => encodeURIComponent(m.url)).join(',') + '" data-types="' + data.media.map(m => m.type).join(',') + '"><span class="icon">📦</span> Download All ('+data.media.length+' files)</a><div class="divider"></div>' : '') +
+                        (data.media.length > 2 ? '<a href="#" class="btn-action btn-dl-all" onclick="downloadAll(event);return false" data-urls="' + data.media.map(m => encodeURIComponent(m.url)).join(',') + '" data-types="' + data.media.map(m => m.type).join(',') + '"><span class="icon">📦</span> Download All ('+data.media.length+' files)</a><div class="divider"></div>' : '') +
                         data.media.map((m, i) => {
                             const dlUrl = (m.type === 'video' || m.type === 'gif')
                                 ? '/api/proxy/media?url=' + encodeURIComponent(m.url)
                                 : m.url;
                             const icon = m.type === 'video' ? '🎬' : m.type === 'gif' ? '🖼' : '📷';
                             const label = m.type === 'video' ? 'Video' : m.type === 'gif' ? 'GIF' : 'Image';
-                            return `<a href="${dlUrl}" class="btn-action outline" download>
+                            const ext = m.type === 'video' ? '.mp4' : m.type === 'gif' ? '.gif' : '.jpg';
+                            return `<a href="#" class="btn-action outline" onclick="forceDownload('${dlUrl.replace(/'/g,"\\'")}','moydl_x_${label.toLowerCase()}_${i+1}${ext}');return false">
                                 <span class="icon">${icon}</span>
                                 <span class="label">${label} #${i+1}<small>${res(m) || 'X/Twitter'}</small></span>
                             </a>`;
