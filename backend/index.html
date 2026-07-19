@@ -318,37 +318,113 @@
         }
         .result-actions {
             display: flex;
-            gap: 8px;
-            padding: 0 16px 16px;
+            gap: 10px;
+            padding: 0 16px 20px;
             flex-wrap: wrap;
         }
-        .result-actions a {
-            flex: 1;
-            min-width: 130px;
-            padding: 12px 16px;
+        .result-actions .btn-action {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 14px 20px;
             border: 2.5px solid var(--border);
             border-radius: var(--radius);
             text-decoration: none;
-            font-size: 0.82rem;
+            font-size: 0.85rem;
             font-weight: 700;
             font-family: inherit;
-            text-align: center;
+            cursor: pointer;
             box-shadow: var(--shadow-sm);
-            transition: all 0.12s;
+            transition: all 0.15s cubic-bezier(0.2,0,0,1);
             color: var(--fg);
             background: var(--card);
+            position: relative;
+            overflow: hidden;
         }
-        .result-actions a:hover {
+        .result-actions .btn-action::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: rgba(0,0,0,0);
+            transition: background 0.15s;
+        }
+        .result-actions .btn-action:hover::after {
+            background: rgba(0,0,0,0.03);
+        }
+        .result-actions .btn-action:hover {
             transform: translate(-2px,-2px);
             box-shadow: 5px 5px 0 0 #111;
         }
-        .result-actions a.primary {
+        .result-actions .btn-action:active {
+            transform: translate(0,0);
+            box-shadow: 2px 2px 0 0 #111;
+        }
+        .result-actions .btn-action .icon {
+            font-size: 1.1rem;
+            flex-shrink: 0;
+        }
+        .result-actions .btn-action .label {
+            text-align: left;
+            line-height: 1.2;
+        }
+        .result-actions .btn-action .label small {
+            display: block;
+            font-size: 0.7rem;
+            font-weight: 500;
+            opacity: 0.65;
+            margin-top: 1px;
+        }
+        .result-actions .btn-action.primary {
             background: var(--pink);
             color: #fff;
         }
-        .result-actions a.audio {
+        .result-actions .btn-action.primary:hover {
+            background: var(--pink-l);
+        }
+        .result-actions .btn-action.accent {
             background: var(--yellow);
             color: var(--fg);
+        }
+        .result-actions .btn-action.accent:hover {
+            background: #ffe066;
+        }
+        .result-actions .btn-action.outline {
+            background: var(--card);
+        }
+        .result-actions .btn-action.outline:hover {
+            background: #f9f9f9;
+        }
+        .result-actions .btn-action .badge-hd {
+            display: inline-block;
+            padding: 2px 6px;
+            background: var(--green);
+            color: #fff;
+            font-size: 0.6rem;
+            font-weight: 800;
+            border-radius: 3px;
+            border: 1.5px solid var(--border);
+            letter-spacing: 0.05em;
+            margin-left: 4px;
+            box-shadow: 1px 1px 0 0 #111;
+        }
+        .result-actions .btn-dl-all {
+            width: 100%;
+            justify-content: center;
+            background: var(--green) !important;
+            color: #fff !important;
+            font-size: 0.9rem;
+            padding: 16px;
+            letter-spacing: 0.02em;
+        }
+        .result-actions .btn-dl-all:hover {
+            background: #4de8a0 !important;
+        }
+        .result-actions .divider {
+            width: 100%;
+            height: 1px;
+            background: var(--border);
+            opacity: 0.15;
+            margin: 4px 0;
         }
         /* Features strip */
         .features {
@@ -459,6 +535,25 @@
             });
         });
 
+        function downloadAll(e) {
+            e.preventDefault();
+            const el = e.target.closest('.btn-dl-all');
+            const urls = el.dataset.urls.split(',');
+            const types = el.dataset.types.split(',');
+            urls.forEach((u, i) => {
+                const t = types[i];
+                const dlUrl = (t === 'video' || t === 'gif')
+                    ? '/api/proxy/media?url=' + u
+                    : decodeURIComponent(u);
+                setTimeout(() => {
+                    const a = document.createElement('a');
+                    a.href = dlUrl;
+                    a.download = '';
+                    a.click();
+                }, i * 300);
+            });
+        }
+
         document.getElementById('urlInput').addEventListener('keydown', function(e) {
             if (e.key === 'Enter') download();
         });
@@ -515,9 +610,17 @@
                 // TikTok video
                 if (data.video_no_watermark) {
                     body.innerHTML = `<video controls poster="${cover}" src="${data.video_no_watermark}"></video>`;
+                    const dur = data.duration ? Math.floor(data.duration/60)+':'+String(data.duration%60).padStart(2,'0') : '';
                     actions.innerHTML = `
-                        <a href="${data.video_no_watermark}" class="primary" download>📥 Video (No WM)</a>
-                        ${data.music ? `<a href="${data.music}" class="audio" download>🎵 Audio MP3</a>` : ''}
+                        <a href="${data.video_no_watermark}" class="btn-action primary" download>
+                            <span class="icon">📥</span>
+                            <span class="label">Video HD<span class="badge-hd">NO WM</span><small>${dur} · TikTok</small></span>
+                        </a>
+                        ${data.music ? `
+                        <a href="${data.music}" class="btn-action accent" download>
+                            <span class="icon">🎵</span>
+                            <span class="label">Audio MP3<small>Musik saja</small></span>
+                        </a>` : ''}
                     `;
                 }
                 // IG single media
@@ -527,10 +630,17 @@
                     } else {
                         body.innerHTML = `<img src="${data.media_url}" alt="">`;
                     }
-                    actions.innerHTML = `<a href="${data.media_url}" class="primary" download>📥 Download</a>`;
+                    const igType = data.type === 'video' ? 'Reel' : 'Post';
+                    actions.innerHTML = `
+                        <a href="${data.media_url}" class="btn-action primary" download>
+                            <span class="icon">📥</span>
+                            <span class="label">Download ${igType}<small>Instagram</small></span>
+                        </a>
+                    `;
                 }
                 // X multiple media
                 else if (data.media && data.media.length) {
+                    const isVideo = data.media.some(m => m.type === 'video' || m.type === 'gif');
                     body.innerHTML = '<div class="media-grid">' + data.media.map((m, i) => {
                         if (m.type === 'video' || m.type === 'gif') {
                             const proxyUrl = '/api/proxy/media?url=' + encodeURIComponent(m.url);
@@ -538,12 +648,21 @@
                         }
                         return `<img src="${m.url}" alt="Media ${i + 1}" loading="lazy">`;
                     }).join('') + '</div>';
-                    actions.innerHTML = data.media.map((m, i) => {
-                        const dlUrl = (m.type === 'video' || m.type === 'gif')
-                            ? '/api/proxy/media?url=' + encodeURIComponent(m.url)
-                            : m.url;
-                        return `<a href="${dlUrl}" download>📥 Media ${i + 1}</a>`;
-                    }).join('');
+
+                    const res = m => m.type === 'video' ? '720p' : (m.size ? (m.size.width+'×'+m.size.height) : '');
+                    actions.innerHTML =
+                        (data.media.length > 2 ? '<a href="#" class="btn-action btn-dl-all" onclick="downloadAll(event)" data-urls="' + data.media.map(m => encodeURIComponent(m.url)).join(',') + '" data-types="' + data.media.map(m => m.type).join(',') + '"><span class="icon">📦</span> Download All ('+data.media.length+' files)</a><div class="divider"></div>' : '') +
+                        data.media.map((m, i) => {
+                            const dlUrl = (m.type === 'video' || m.type === 'gif')
+                                ? '/api/proxy/media?url=' + encodeURIComponent(m.url)
+                                : m.url;
+                            const icon = m.type === 'video' ? '🎬' : m.type === 'gif' ? '🖼' : '📷';
+                            const label = m.type === 'video' ? 'Video' : m.type === 'gif' ? 'GIF' : 'Image';
+                            return `<a href="${dlUrl}" class="btn-action outline" download>
+                                <span class="icon">${icon}</span>
+                                <span class="label">${label} #${i+1}<small>${res(m) || 'X/Twitter'}</small></span>
+                            </a>`;
+                        }).join('');
                 }
 
                 result.classList.add('show');
