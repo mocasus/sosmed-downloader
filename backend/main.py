@@ -24,93 +24,40 @@ app.add_middleware(
 # ═══════════════════════════════════════
 
 async def tiktok_download(url: str) -> dict:
-    """TikTok video/photo download via yt-dlp"""
-    import subprocess, json, os
+    """No-watermark TikTok via tikwm.com API (clean no-WM)"""
+    async with httpx.AsyncClient(timeout=30) as client:
+        api_url = "https://www.tikwm.com/api/"
+        resp = await client.post(api_url, data={"url": url})
+        data = resp.json()
 
-    try:
-        cmd = [
-            "python3", "-m", "yt_dlp",
-            "--dump-json",
-            "--no-playlist",
-            "--no-check-certificates",
-            url
-        ]
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+        if data.get("code") != 0:
+            raise HTTPException(400, "Gagal download TikTok")
 
-        if result.returncode != 0 or not result.stdout.strip():
-            raise HTTPException(400, "Tidak dapat mengakses TikTok")
-
-        data = json.loads(result.stdout)
+        video = data.get("data", {})
 
         # Check for photo slideshow
-        thumbnails = data.get("thumbnails", [])
-        is_photo = data.get("_type") == "playlist" or (not data.get("duration") and thumbnails)
-
-        # Handle photos (slideshow / multi-image)
-        if data.get("_type") == "playlist":
-            entries = data.get("entries", [])
-            if entries:
-                media = [{"type": "image", "url": e.get("url", "")} for e in entries if e.get("url")]
-                if media:
-                    return {
-                        "platform": "tiktok",
-                        "type": "image",
-                        "author": data.get("uploader", ""),
-                        "title": (data.get("title", "") or "")[:200],
-                        "cover": thumbnails[-1]["url"] if thumbnails else "",
-                        "media": media,
-                        "music": None,
-                    }
-
-        # Standard video — get best non-watermarked format
-        formats = data.get("formats", [])
-        best_video = None
-        for f in formats:
-            if f.get("format_id") == "download":
-                continue  # Skip watermarked
-            has_video = f.get("vcodec", "none") != "none"
-            if has_video:
-                height = f.get("height") or 0
-                if not best_video or height > (best_video.get("height") or 0):
-                    best_video = f
-
-        video_url = best_video.get("url", "") if best_video else ""
-
-        # Get audio separately if needed
-        best_audio = None
-        for f in formats:
-            if f.get("format_id") == "download":
-                continue
-            has_audio = f.get("acodec", "none") != "none"
-            no_video = f.get("vcodec", "none") == "none"
-            if has_audio and no_video:
-                abr = f.get("abr") or 0
-                if not best_audio or abr > (best_audio.get("abr") or 0):
-                    best_audio = f
-
-        audio_url = best_audio.get("url", "") if best_audio else ""
-
-        # Cover from thumbnails
-        cover = ""
-        if thumbnails:
-            cover = thumbnails[-1].get("url", "") if isinstance(thumbnails[-1], dict) else ""
+        if video.get("images") and len(video["images"]) > 0:
+            return {
+                "platform": "tiktok",
+                "type": "image",
+                "author": video.get("author", {}).get("nickname", ""),
+                "title": video.get("title", ""),
+                "cover": video.get("cover", ""),
+                "media": [{"type": "image", "url": img} for img in video["images"]],
+                "music": video.get("music", ""),
+            }
 
         return {
             "platform": "tiktok",
             "type": "video",
-            "author": data.get("uploader", ""),
-            "title": (data.get("title", "") or "")[:200],
-            "duration": int(data.get("duration", 0)),
-            "cover": cover,
-            "video_no_watermark": video_url,
-            "video_watermark": "",
-            "music": audio_url,
+            "author": video.get("author", {}).get("nickname", ""),
+            "title": video.get("title", ""),
+            "duration": video.get("duration", 0),
+            "cover": video.get("cover", ""),
+            "video_no_watermark": video.get("play", ""),   # NO watermark
+            "video_watermark": video.get("wmplay", ""),     # WITH watermark
+            "music": video.get("music", ""),
         }
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(400, f"Gagal download TikTok: {str(e)[:100]}")
 
 
 # ═══════════════════════════════════════
