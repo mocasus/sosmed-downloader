@@ -8,7 +8,7 @@ from typing import Optional
 import os
 from fastapi import FastAPI, Query, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, HTMLResponse
+from fastapi.responses import JSONResponse, HTMLResponse, StreamingResponse
 
 app = FastAPI(title="Sosmed Downloader", version="1.0.0")
 
@@ -202,6 +202,37 @@ async def api_instagram(url: str = Query(...)):
 @app.get("/api/x")
 async def api_x(url: str = Query(...)):
     return await twitter_download(url)
+
+
+# ═══════════════════════════════════════
+# MEDIA PROXY — bypass Twitter Referer 403
+# ═══════════════════════════════════════
+
+@app.get("/api/proxy/media")
+async def proxy_media(url: str = Query(..., description="Media URL to proxy")):
+    """Proxy media with proper Referer to bypass CDN block"""
+    import httpx
+
+    try:
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+            "Referer": "https://twitter.com/",
+        }
+        async with httpx.AsyncClient(timeout=60, follow_redirects=True) as client:
+            resp = await client.get(url, headers=headers)
+            resp.raise_for_status()
+
+            return StreamingResponse(
+                resp.aiter_bytes(),
+                status_code=200,
+                media_type=resp.headers.get("content-type", "application/octet-stream"),
+                headers={
+                    "Content-Disposition": f"attachment; filename=media_{url.split('/')[-1].split('?')[0]}",
+                    "Cache-Control": "public, max-age=86400",
+                }
+            )
+    except Exception as e:
+        raise HTTPException(400, f"Proxy error: {str(e)[:100]}")
 
 
 # ═══════════════════════════════════════

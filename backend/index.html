@@ -533,13 +533,17 @@
                 else if (data.media && data.media.length) {
                     body.innerHTML = '<div class="media-grid">' + data.media.map((m, i) => {
                         if (m.type === 'video' || m.type === 'gif') {
-                            return `<video controls src="${m.url}" poster="${m.thumbnail || ''}"></video>`;
+                            const proxyUrl = '/api/proxy/media?url=' + encodeURIComponent(m.url);
+                            return `<video controls src="${proxyUrl}" poster="${m.thumbnail || ''}"></video>`;
                         }
                         return `<img src="${m.url}" alt="Media ${i + 1}" loading="lazy">`;
                     }).join('') + '</div>';
-                    actions.innerHTML = data.media.map((m, i) =>
-                        `<a href="${m.url}" download>📥 Media ${i + 1}</a>`
-                    ).join('');
+                    actions.innerHTML = data.media.map((m, i) => {
+                        const dlUrl = (m.type === 'video' || m.type === 'gif')
+                            ? '/api/proxy/media?url=' + encodeURIComponent(m.url)
+                            : m.url;
+                        return `<a href="${dlUrl}" download>📥 Media ${i + 1}</a>`;
+                    }).join('');
                 }
 
                 result.classList.add('show');
