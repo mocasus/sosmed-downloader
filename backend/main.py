@@ -43,6 +43,19 @@ async def tiktok_download(url: str) -> dict:
             raise HTTPException(400, "Gagal download TikTok")
 
         video = data.get("data", {})
+
+        # Check for photo slideshow (images array)
+        if video.get("images") and len(video["images"]) > 0:
+            return {
+                "platform": "tiktok",
+                "type": "image",
+                "author": video.get("author", {}).get("nickname", ""),
+                "title": video.get("title", ""),
+                "cover": video.get("cover", ""),
+                "media": [{"type": "image", "url": img} for img in video["images"]],
+                "music": video.get("music", ""),
+            }
+
         return {
             "platform": "tiktok",
             "type": "video",

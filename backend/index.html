@@ -475,7 +475,7 @@
             box-shadow: var(--shadow-sm);
         }
         .feature .emoji { margin-right: 4px; }
-        /* Download toast */\n        .download-toast {\n            position: fixed;\n            bottom: 24px;\n            left: 50%;\n            transform: translateX(-50%) translateY(120px);\n            background: var(--fg);\n            color: #fff;\n            padding: 14px 24px;\n            border: 2.5px solid var(--border);\n            border-radius: var(--radius);\n            font-weight: 700;\n            font-size: 0.85rem;\n            box-shadow: var(--shadow);\n            z-index: 999;\n            transition: transform 0.3s cubic-bezier(0.2,0.8,0.2,1.2);\n            display: flex;\n            align-items: center;\n            gap: 8px;\n            white-space: nowrap;\n        }\n        .download-toast.show {\n            transform: translateX(-50%) translateY(0);\n        }\n        .download-toast .toast-spinner {\n            width: 14px; height: 14px;\n            border: 2px solid rgba(255,255,255,0.3);\n            border-top-color: #fff;\n            border-radius: 50%;\n            animation: spin 0.6s linear infinite;\n        }\n        .download-toast.success { background: var(--green); color: #fff; }\n        @keyframes spin { to { transform: rotate(360deg); } }\n        /* Button downloading state */\n        .btn-action.downloading {\n            opacity: 0.7;\n            pointer-events: none;\n            position: relative;\n        }\n        .btn-action.downloading .icon {\n            animation: bounceIcon 0.4s ease-in-out infinite;\n        }\n        @keyframes bounceIcon {\n            0%,100% { transform: translateY(0); }\n            50% { transform: translateY(-4px); }\n        }
+        /* Download toast */\n        .download-toast {\n            position: fixed;\n            bottom: 24px;\n            left: 50%;\n            transform: translateX(-50%) translateY(120px);\n            background: var(--fg);\n            color: #fff;\n            padding: 14px 24px;\n            border: 2.5px solid var(--border);\n            border-radius: var(--radius);\n            font-weight: 700;\n            font-size: 0.85rem;\n            box-shadow: var(--shadow);\n            z-index: 999;\n            transition: transform 0.3s cubic-bezier(0.2,0.8,0.2,1.2);\n            display: flex;\n            align-items: center;\n            gap: 8px;\n            white-space: nowrap;\n        }\n        .download-toast.show {\n            transform: translateX(-50%) translateY(0);\n        }\n        .download-toast .toast-spinner {\n            width: 14px; height: 14px;\n            border: 2px solid rgba(255,255,255,0.3);\n            border-top-color: #fff;\n            border-radius: 50%;\n            animation: spin 0.6s linear infinite;\n        }\n        .download-toast.success { background: var(--green); color: #fff; }\n        @keyframes spin { to { transform: rotate(360deg); } }\n        /* Button downloading state */\n        .btn-action.downloading {\n            opacity: 0.6;\n            pointer-events: none !important;\n            cursor: not-allowed !important;\n            user-select: none;\n            position: relative;\n        }\n        .btn-action.downloading .icon {\n            animation: bounceIcon 0.4s ease-in-out infinite;\n        }\n        @keyframes bounceIcon {\n            0%,100% { transform: translateY(0); }\n            50% { transform: translateY(-4px); }\n        }
         .footer {
             text-align: center;
             margin-top: 36px;
@@ -594,10 +594,14 @@
 
         // Force download via blob (bypasses cross-origin download restriction)
         function forceDownload(url, filename, btn) {
+            // Prevent double-click
+            if (btn && btn.classList.contains('downloading')) return false;
+
             const originalHTML = btn ? btn.innerHTML : '';
             if (btn) {
                 btn.classList.add('downloading');
-                btn.querySelector('.label small').textContent = 'Mendownload...';
+                const small = btn.querySelector('.label small');
+                if (small) small.textContent = 'Mendownload...';
             }
             showToast('⬇️ Mendownload...', false);
 
@@ -787,6 +791,27 @@
                             <span class="label">Audio MP3<small>Musik saja</small></span>
                         </a>` : ''}
                     `;
+                }
+                // TikTok photo slideshow
+                else if (data.media && data.media.length && data.platform === 'tiktok') {
+                    body.innerHTML = '<div class="media-grid">' + data.media.map((m, i) =>
+                        `<img src="${m.url}" alt="Slide ${i + 1}" loading="lazy">`
+                    ).join('') + '</div>';
+                    actions.innerHTML =
+                        (data.media.length > 2 ? '<a href="#" class="btn-action btn-dl-all" onclick="downloadAll(event);return false" data-urls="' + data.media.map(m => encodeURIComponent(m.url)).join(',') + '" data-types="' + data.media.map(m => m.type).join(',') + '"><span class="icon">📦</span> Download All ('+data.media.length+' photos)</a><div class="divider"></div>' : '') +
+                        data.media.map((m, i) =>
+                            `<a href="#" class="btn-action outline" onclick="forceDownload('${m.url.replace(/'/g,"\\'")}','moydl_tiktok_photo_${i+1}.jpg',this);return false">
+                                <span class="icon">📷</span>
+                                <span class="label">Foto #${i+1}<small>TikTok Slideshow</small></span>
+                            </a>`
+                        ).join('');
+                    if (data.music) {
+                        actions.innerHTML += `<div class="divider"></div>
+                        <a href="#" class="btn-action accent" onclick="forceDownload('${data.music.replace(/'/g,"\\'")}','moydl_tiktok_audio.mp3',this);return false">
+                            <span class="icon">🎵</span>
+                            <span class="label">Audio MP3<small>Musik slideshow</small></span>
+                        </a>`;
+                    }
                 }
                 // IG single media
                 else if (data.media_url) {
